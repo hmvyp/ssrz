@@ -21,6 +21,25 @@ typedef struct ssrzByteStream{
 
 #endif
 
+// Define expression that maps number of a byte of an integral type
+// (counting from the least significant byte) to byte number in the byte stream
+// The mapping depends on endianness.
+// In the code below "nb" denotes sizeof(integral type)
+
+#ifndef SSRZ_ENDIAN
+# error "Please define SSRZ_ENDIAN macro: 0 for little endian,  1 for big endian"
+#elif SSRZ_ENDIAN == 1
+// big endian case:
+# define SSRZ_IDX4BYTE(i) (nb - 1 - (i))
+#elif SSRZ_ENDIAN == 0
+// little endian case:
+# define SSRZ_IDX4BYTE(i) (i)
+#else
+# error "SSRZ_ENDIAN shall be  0 (for little endian) or 1 (for big endian)"
+#endif
+
+
+
 // define reader for unsigned version of signed type typ (returns error code):
 #define SSRZ_UREADER_M(typ) static inline int \
 ssrzRead_u##typ (ssrzByteStream* bs, u##typ* pval){ \
@@ -29,10 +48,10 @@ ssrzRead_u##typ (ssrzByteStream* bs, u##typ* pval){ \
   if(nb > bs->length){ \
     return -1; \
   }else{ \
-    res = bs->data[0]; \
+    res = bs->data[SSRZ_IDX4BYTE(nb-1)]; \
     unsigned i; \
     for(i = 1; i < nb;  ++i){ \
-      res = (res << 8) | bs->data[i]; \
+      res = (res << 8) | bs->data[SSRZ_IDX4BYTE(nb - 1 - i)]; \
     } \
     bs->data += nb; \
     bs->length -= nb; \
@@ -49,11 +68,11 @@ ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
   if(nb > bs->length){ \
     return -1; \
   }else{ \
-    bs->data[0] = (uint8_t) val; \
+    bs->data[SSRZ_IDX4BYTE(0)] = (uint8_t) val; \
     unsigned i; \
     for(i = 1; i < nb;  ++i){ \
       val = val >> 8; \
-      bs->data[i] = (uint8_t) val;\
+      bs->data[SSRZ_IDX4BYTE(i)] = (uint8_t) val;\
     } \
     bs->data += nb; \
     bs->length -= nb; \
