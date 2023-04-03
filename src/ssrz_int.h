@@ -14,10 +14,42 @@
 // allow duck-typing for user-defined stream class:
 #ifndef ssrzByteStream
 
+// Library user can define custom implementation of byte stream
+// providing his own class (struct) definition
+// and ssrzByteStreamRead / ssrzByteStreamWrite functions.
+// The functions must return int error code:  0 on success, non-zero error code otherwise
+// (see exact functions signature in the default implementation below)
+
+// Default array-based stream implementation:
+
 typedef struct ssrzByteStream{
   unsigned char* data;
   size_t length;
 }ssrzByteStream;
+
+static inline int
+ssrzByteStreamRead(ssrzByteStream* bs, uint8_t* dst){
+  if(bs->length == 0){
+    return -1;
+  }else{
+    *dst = bs->data[0];
+    ++(bs->data);
+    --(bs->length);
+  }
+  return 0;
+}
+
+static inline int
+ssrzByteStreamWrite(ssrzByteStream* bs, uint8_t src){
+  if(bs->length == 0){
+    return -1;
+  }else{
+    bs->data[0] = src;
+    ++(bs->data);
+    --(bs->length);
+  }
+  return 0;
+}
 
 #endif
 
@@ -45,18 +77,17 @@ typedef struct ssrzByteStream{
 ssrzRead_u##typ (ssrzByteStream* bs, u##typ* pval){ \
   unsigned nb = sizeof(u##typ); \
   u##typ res = 0; \
-  if(nb > bs->length){ \
-    return -1; \
-  }else{ \
-    unsigned i; \
-    for(i = 0; i < nb;  ++i){ \
-      res = res | (((u##typ)bs->data[i]) << SSRZ_BIT4BYTE(i)); \
+  unsigned i; \
+  for(i = 0; i < nb;  ++i){ \
+    uint8_t byte = 0; \
+    int err = ssrzByteStreamRead(bs, &byte); \
+    if(err != 0){ \
+      return err; \
     } \
-    bs->data += nb; \
-    bs->length -= nb; \
-    *pval = res; \
-    return 0; \
+    res = res | (((u##typ)byte) << SSRZ_BIT4BYTE(i)); \
   } \
+  *pval = res; \
+  return 0; \
 }
 
 // define writer for unsigned version of signed type typ (returns error code):
@@ -64,17 +95,14 @@ ssrzRead_u##typ (ssrzByteStream* bs, u##typ* pval){ \
 ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
   unsigned nb = sizeof(u##typ); \
   u##typ val = *pval; \
-  if(nb > bs->length){ \
-    return -1; \
-  }else{ \
-    unsigned i; \
-    for(i = 0; i < nb;  ++i){ \
-      bs->data[i] = (uint8_t)(val >> SSRZ_BIT4BYTE(i)); \
-    } \
-    bs->data += nb; \
-    bs->length -= nb; \
-    return 0; \
+  unsigned i; \
+  for(i = 0; i < nb;  ++i){ \
+    int err = ssrzByteStreamWrite(bs, (uint8_t)(val >> SSRZ_BIT4BYTE(i))); \
+    if( err != 0) { \
+      return err; \
+    }\
   } \
+  return 0; \
 }
 
 #define SSRZ_SREADER_M(typ)  \
