@@ -1,16 +1,16 @@
 #ifndef ssrz_pp_h
 #define ssrz_pp_h
 
-// applies one-parameter macro  m##_M to item
-#define deF(m, item) m##_M(item)
+// applies one-parameter macro  m##_M to item p
+#define deF(m, p) m##_M(p)
 
-// applies two-parameters macro  m##_M to 2 items
-#define deF2(m, item1, item2) m##_M(item1, item2)
+// applies two-parameters macro  m##_M to 2 items p1, p2
+#define deF2(m, p1, p2) m##_M(p1, p2)
 
 // etc. :
-#define deF3(m, item1, item2, item3) m##_M(item1, item2, item3)
-#define deF4(m, item1, item2, item3, item4) m##_M(item1, item2, item3, item4)
-#define deF5(m, item1, item2, item3, item4, item5) m##_M(item1, item2, item3, item4, item5)
+#define deF3(m, p1, p2, p3) m##_M(p1, p2, p3)
+#define deF4(m, p1, p2, p3, p4) m##_M(p1, p2, p3, p4)
+#define deF5(m, p1, p2, p3, p4, p5) m##_M(p1, p2, p3, p4, p5)
 
 
 // helper macros to do nothing in deF macro:
