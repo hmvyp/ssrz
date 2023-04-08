@@ -115,6 +115,13 @@ ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
     return ssrzWrite_u##typ (bs, (u##typ*)pval); \
   }
 
+#define SSRZ_UWIRELENGTH_M(typ)  \
+  ssrz_wire_length_u##typ = sizeof(u##typ),
+
+#define SSRZ_SWIRELENGTH_M(typ)  \
+  ssrz_wire_length_##typ = sizeof(typ),
+
+
 #define SET_OF_SIGNED_INTEGRALS(int_type) \
     deF(int_type, int8_t)  \
     deF(int_type, int16_t) \
@@ -126,7 +133,12 @@ ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
     SET_OF_SIGNED_INTEGRALS(SSRZ_SREADER) \
     SET_OF_SIGNED_INTEGRALS(SSRZ_UWRITER) \
     SET_OF_SIGNED_INTEGRALS(SSRZ_SWRITER) \
+    enum { \
+    SET_OF_SIGNED_INTEGRALS(SSRZ_UWIRELENGTH) \
+    SET_OF_SIGNED_INTEGRALS(SSRZ_SWIRELENGTH) \
+    ssrz_wire_length_neverused };
 
+#define SSRZ_WIRE_LENGTH(typ) ssrz_wire_length_##typ
 
 MK_INT_READERS_WRITERS
 

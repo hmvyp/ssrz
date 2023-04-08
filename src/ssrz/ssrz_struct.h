@@ -61,10 +61,22 @@
     return 0; \
 }
 
+#define SSRZ_STRUCT_WIRESIZE_ENUM_NAME_M(structname) ssrz_wire_length_##structname = 0
+#define SSRZ_STRUCT_STRUCT_FIELD_WIRELENGTH_M(typ, nam) + ssrz_wire_length_##typ
+#define SSRZ_STRUCT_STRUCT_AFIELD_WIRELENGTH_M(typ, nam, card) + (ssrz_wire_length_##typ * card)
+
+#define SSRZ_STRUCT_MK_WIRELENGTH(structdef) \
+  enum { \
+    structdef##_M(SSRZ_STRUCT_WIRESIZE_ENUM_NAME, SSRZ_EMPTY2, SSRZ_EMPTY3) \
+    structdef##_M(SSRZ_EMPTY1, SSRZ_STRUCT_STRUCT_FIELD_WIRELENGTH, SSRZ_STRUCT_STRUCT_AFIELD_WIRELENGTH)\
+  };
+
+
 #define SSRZ_DEFINE_STRUCT(structdef) \
 SSRZ_STRUCT_MK_TYPE(structdef)        \
 SSRZ_STRUCT_MK_READER(structdef)      \
-SSRZ_STRUCT_MK_WRITER(structdef)
+SSRZ_STRUCT_MK_WRITER(structdef)      \
+SSRZ_STRUCT_MK_WIRELENGTH(structdef)
 
 
 // example
@@ -112,7 +124,9 @@ ssrzTestStruct(){
 
     int res_cmp = memcmp(b1,b2, SSRZ_TEST_BUFSIZE); // compare buffers
 
-    if(res_w == 0 && res_r == 0 && res_w2 == 0 && res_cmp == 0){
+    int wiresize =  SSRZ_WIRE_LENGTH(my_struct_t);
+
+    if(res_w == 0 && res_r == 0 && res_w2 == 0 && res_cmp == 0 && wiresize == SSRZ_TEST_BUFSIZE - bs1.length){
       return 0; //Ok
     }
   }
