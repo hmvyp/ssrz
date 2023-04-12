@@ -46,20 +46,30 @@
 #define SSRZ_STRUCT_FUNC_HEADER(action, struct_name)   static inline int \
   ssrz##action##_##struct_name (ssrzByteStream* bs, struct_name* pval) {
 
+#define SSRZ_STRUCT_CPP_FUNC_(action, struct_name)   SSRZ_IF_CPP( template<> inline int \
+  ssrz##action<struct_name> (ssrzByteStream* bs, struct_name* pval) {return ssrz##action##_##struct_name (bs, pval);}\
+  )
+
 #define SSRZ_STRUCT_READ_FUNC_HEADER_M(struct_name) SSRZ_STRUCT_FUNC_HEADER(Read, struct_name)
 #define SSRZ_STRUCT_WRITE_FUNC_HEADER_M(struct_name) SSRZ_STRUCT_FUNC_HEADER(Write, struct_name)
+
+#define SSRZ_STRUCT_CPP_READ_FUNC_M(struct_name) SSRZ_STRUCT_CPP_FUNC_(Read, struct_name)
+#define SSRZ_STRUCT_CPP_WRITE_FUNC_M(struct_name) SSRZ_STRUCT_CPP_FUNC_(Write, struct_name)
 
 #define SSRZ_STRUCT_MK_READER(structdef) \
     structdef##_M(SSRZ_STRUCT_READ_FUNC_HEADER, SSRZ_EMPTY2, SSRZ_EMPTY3) \
     structdef##_M(SSRZ_EMPTY1, SSRZ_STRUCT_FIELD_READ, SSRZ_STRUCT_ARRAY_FIELD_READ) \
     return 0; \
-}
+}\
+structdef##_M(SSRZ_STRUCT_CPP_READ_FUNC, SSRZ_EMPTY2, SSRZ_EMPTY3)
 
 #define SSRZ_STRUCT_MK_WRITER(structdef) \
     structdef##_M(SSRZ_STRUCT_WRITE_FUNC_HEADER, SSRZ_EMPTY2, SSRZ_EMPTY3) \
     structdef##_M(SSRZ_EMPTY1, SSRZ_STRUCT_FIELD_WRITE, SSRZ_STRUCT_ARRAY_FIELD_WRITE) \
     return 0; \
-}
+}\
+structdef##_M(SSRZ_STRUCT_CPP_WRITE_FUNC, SSRZ_EMPTY2, SSRZ_EMPTY3)
+
 
 #define SSRZ_STRUCT_WIRESIZE_ENUM_NAME_M(structname) ssrz_wire_length_##structname = 0
 #define SSRZ_STRUCT_STRUCT_FIELD_WIRELENGTH_M(typ, nam) + ssrz_wire_length_##typ
@@ -69,17 +79,23 @@
   enum { \
     structdef##_M(SSRZ_STRUCT_WIRESIZE_ENUM_NAME, SSRZ_EMPTY2, SSRZ_EMPTY3) \
     structdef##_M(SSRZ_EMPTY1, SSRZ_STRUCT_STRUCT_FIELD_WIRELENGTH, SSRZ_STRUCT_STRUCT_AFIELD_WIRELENGTH)\
-  };
+  }; \
+  structdef##_M(SSRZ_WIRELENGTH_CONSTEXPR, SSRZ_EMPTY2, SSRZ_EMPTY3)
 
 
 #define SSRZ_DEFINE_STRUCT(structdef) \
 SSRZ_STRUCT_MK_TYPE(structdef)        \
 SSRZ_STRUCT_MK_READER(structdef)      \
-SSRZ_STRUCT_MK_WRITER(structdef)      \
+SSRZ_STRUCT_MK_WRITER(structdef)
+
+#define SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(structdef) \
+SSRZ_DEFINE_STRUCT(structdef)\
 SSRZ_STRUCT_MK_WIRELENGTH(structdef)
 
 
-// example
+
+//.......... usage example & test:
+
 #ifdef SSRZ_TEST
 
 #include <string.h>
@@ -100,8 +116,17 @@ SSRZ_STRUCT_MK_WIRELENGTH(structdef)
 
 
 
-SSRZ_DEFINE_STRUCT(MY_INNER_STRUCT)
-SSRZ_DEFINE_STRUCT(MY_STRUCT)
+SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(MY_INNER_STRUCT)
+SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(MY_STRUCT)
+
+
+// call C-style serialization function or template function depending on the language:
+#ifdef __cplusplus
+# define SSRZ_TEST_OP(act, typ) act
+#else
+# define SSRZ_TEST_OP(act, typ) act##_##typ
+#endif
+
 
 #define SSRZ_TEST_BUFSIZE 200
 
@@ -119,14 +144,20 @@ ssrzTestStruct(){
     size_t data_sz = sizeof(b1) - bs1.length;
     ssrzByteStream bs2 = {b1, data_sz};
     ssrzByteStream bs3 = {b2, data_sz};
-    int res_r = ssrzRead_my_struct_t(&bs2, &dst); // deserialize from buffer to dst struct
-    int res_w2 = ssrzWrite_my_struct_t(&bs3, &dst); // serialize result (dst) to another buffer b2
+    int res_r = SSRZ_TEST_OP(ssrzRead, my_struct_t)(&bs2, &dst); // deserialize from buffer to dst struct
+    int res_w2 =  SSRZ_TEST_OP(ssrzWrite, my_struct_t)(&bs3, &dst); // serialize result (dst) to another buffer b2
 
     int res_cmp = memcmp(b1,b2, SSRZ_TEST_BUFSIZE); // compare buffers
 
-    int wiresize =  SSRZ_WIRE_LENGTH(my_struct_t);
+    size_t wiresize =  SSRZ_WIRE_LENGTH(my_struct_t);
 
-    if(res_w == 0 && res_r == 0 && res_w2 == 0 && res_cmp == 0 && wiresize == SSRZ_TEST_BUFSIZE - bs1.length){
+    if(res_w == 0
+        && res_r == 0
+        && res_w2 == 0
+        && res_cmp == 0
+        && wiresize == SSRZ_TEST_BUFSIZE - bs1.length
+        SSRZ_IF_CPP( && ssrzWireLength<my_struct_t>() == wiresize) // test constexpr wire size
+    ){
       return 0; //Ok
     }
   }

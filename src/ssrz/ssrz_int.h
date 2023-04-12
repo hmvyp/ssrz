@@ -51,7 +51,7 @@ ssrzByteStreamWrite(ssrzByteStream* bs, uint8_t src){
   return 0;
 }
 
-#endif
+#endif // ssrzByteStream
 
 // Define expression that maps number of a byte in the byte stream
 // to bit number in some integral type (counting from the least significant bit with number 0)
@@ -71,6 +71,16 @@ ssrzByteStreamWrite(ssrzByteStream* bs, uint8_t src){
 #endif
 
 
+#ifdef __cplusplus
+# define SSRZ_IF_CPP(something) something
+#else
+# define SSRZ_IF_CPP(nothing)
+#endif
+
+// declare template readers-writers for c++:
+SSRZ_IF_CPP(template<typename T> static inline int ssrzRead(ssrzByteStream* bs, T* pval)) ;
+SSRZ_IF_CPP(template<typename T> static inline int ssrzWrite(ssrzByteStream* bs, T* pval) );
+
 
 // define reader for unsigned version of signed type typ (returns error code):
 #define SSRZ_UREADER_M(typ) static inline int \
@@ -88,7 +98,11 @@ ssrzRead_u##typ (ssrzByteStream* bs, u##typ* pval){ \
   } \
   *pval = res; \
   return 0; \
-}
+}\
+SSRZ_IF_CPP(template< > inline int \
+    ssrzRead<u##typ>(ssrzByteStream* bs, u##typ* pval){return ssrzRead_u##typ(bs, pval); } \
+)
+
 
 // define writer for unsigned version of signed type typ (returns error code):
 #define SSRZ_UWRITER_M(typ) static inline int \
@@ -103,23 +117,48 @@ ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
     }\
   } \
   return 0; \
-}
+}\
+SSRZ_IF_CPP(template< > inline int \
+    ssrzWrite<u##typ>(ssrzByteStream* bs, u##typ* pval){return ssrzWrite_u##typ(bs, pval); } \
+)
 
 #define SSRZ_SREADER_M(typ)  \
   static inline int ssrzRead_##typ (ssrzByteStream* bs, typ* pval) {\
     return  ssrzRead_u##typ (bs, (u##typ*)pval); \
-  }
+  }\
+  SSRZ_IF_CPP(template<> inline int \
+      ssrzRead<typ>(ssrzByteStream* bs, typ* pval){return ssrzRead_##typ(bs, pval); } \
+  )
 
 #define SSRZ_SWRITER_M(typ)  \
   static inline int ssrzWrite_##typ (ssrzByteStream* bs, typ* pval) {\
     return ssrzWrite_u##typ (bs, (u##typ*)pval); \
-  }
+  }\
+  SSRZ_IF_CPP(template< > inline int \
+      ssrzWrite<typ>(ssrzByteStream* bs, typ* pval){return ssrzRead_##typ(bs, pval); } \
+  )
+
+
+// wire size as enum:
 
 #define SSRZ_UWIRELENGTH_M(typ)  \
   ssrz_wire_length_u##typ = sizeof(u##typ),
 
 #define SSRZ_SWIRELENGTH_M(typ)  \
   ssrz_wire_length_##typ = sizeof(typ),
+
+// constexpr wire size functions (C++):
+
+// common template declaration:
+SSRZ_IF_CPP(template<typename T > inline constexpr size_t ssrzWireLength(); )
+
+// speciialization for type t:
+#define SSRZ_WIRELENGTH_CONSTEXPR_M(t) SSRZ_IF_CPP( template< > inline constexpr size_t \
+  ssrzWireLength<t>() {return SSRZ_WIRE_LENGTH(t);} \
+)
+
+#define SSRZ_UWIRELENGTH_CONSTEXPR_M(typ)  SSRZ_WIRELENGTH_CONSTEXPR_M(u##typ)
+#define SSRZ_SWIRELENGTH_CONSTEXPR_M(typ)  SSRZ_WIRELENGTH_CONSTEXPR_M(typ)
 
 
 #define SET_OF_SIGNED_INTEGRALS(int_type) \
@@ -134,21 +173,17 @@ ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
     SET_OF_SIGNED_INTEGRALS(SSRZ_UWRITER) \
     SET_OF_SIGNED_INTEGRALS(SSRZ_SWRITER) \
     enum { \
-    SET_OF_SIGNED_INTEGRALS(SSRZ_UWIRELENGTH) \
-    SET_OF_SIGNED_INTEGRALS(SSRZ_SWIRELENGTH) \
-    ssrz_wire_length_neverused };
+      SET_OF_SIGNED_INTEGRALS(SSRZ_UWIRELENGTH) \
+      SET_OF_SIGNED_INTEGRALS(SSRZ_SWIRELENGTH) \
+      ssrz_wire_length_neverused \
+    }; \
+    SET_OF_SIGNED_INTEGRALS(SSRZ_UWIRELENGTH_CONSTEXPR) \
+    SET_OF_SIGNED_INTEGRALS(SSRZ_SWIRELENGTH_CONSTEXPR) \
 
 #define SSRZ_WIRE_LENGTH(typ) ssrz_wire_length_##typ
 
+
 MK_INT_READERS_WRITERS
-
-
-
-
-
-
-
-
 
 
 
