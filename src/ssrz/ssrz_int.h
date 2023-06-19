@@ -6,6 +6,7 @@
 #define ssrz_int_h
 
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "ssrz_pp.h"
