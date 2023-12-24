@@ -10,6 +10,7 @@
 #define SSRZ_ID2_2_M(p1, p2) p2
 */
 
+
 #define SSRZ_STRUCT_FIELD_M(typ, fieldname) typ fieldname;
 #define SSRZ_STRUCT_ARRAY_FIELD_M(typ, fieldname, card) typ fieldname[card];
 
@@ -43,18 +44,18 @@
 #define  SSRZ_STRUCT_ARRAY_FIELD_READ_M(typ, nam, card) SSRZ_STRUCT_PROCESS_ARRAY_FIELD(Read, typ, nam, card)
 #define  SSRZ_STRUCT_ARRAY_FIELD_WRITE_M(typ, nam, card) SSRZ_STRUCT_PROCESS_ARRAY_FIELD(Write, typ, nam, card)
 
-#define SSRZ_STRUCT_FUNC_HEADER(action, struct_name)   static inline int \
-  ssrz##action##_##struct_name (ssrzByteStream* bs, struct_name* pval) {
+#define SSRZ_STRUCT_FUNC_HEADER(action, struct_name, constness)   static inline int \
+  ssrz##action##_##struct_name (ssrzByteStream* bs, constness struct_name* pval) {
 
-#define SSRZ_STRUCT_CPP_FUNC_(action, struct_name)   SSRZ_IF_CPP( template<> inline int \
-  ssrz##action<struct_name> (ssrzByteStream* bs, struct_name* pval) {return ssrz##action##_##struct_name (bs, pval);}\
+#define SSRZ_STRUCT_CPP_FUNC_(action, struct_name, constness)   SSRZ_IF_CPP( template<> inline int \
+  ssrz##action<struct_name> (ssrzByteStream* bs,  constness struct_name* pval) {return ssrz##action##_##struct_name (bs,pval);}\
   )
 
-#define SSRZ_STRUCT_READ_FUNC_HEADER_M(struct_name) SSRZ_STRUCT_FUNC_HEADER(Read, struct_name)
-#define SSRZ_STRUCT_WRITE_FUNC_HEADER_M(struct_name) SSRZ_STRUCT_FUNC_HEADER(Write, struct_name)
+#define SSRZ_STRUCT_READ_FUNC_HEADER_M(struct_name) SSRZ_STRUCT_FUNC_HEADER(Read, struct_name, )
+#define SSRZ_STRUCT_WRITE_FUNC_HEADER_M(struct_name) SSRZ_STRUCT_FUNC_HEADER(Write, struct_name, const)
 
-#define SSRZ_STRUCT_CPP_READ_FUNC_M(struct_name) SSRZ_STRUCT_CPP_FUNC_(Read, struct_name)
-#define SSRZ_STRUCT_CPP_WRITE_FUNC_M(struct_name) SSRZ_STRUCT_CPP_FUNC_(Write, struct_name)
+#define SSRZ_STRUCT_CPP_READ_FUNC_M(struct_name) SSRZ_STRUCT_CPP_FUNC_(Read, struct_name, )
+#define SSRZ_STRUCT_CPP_WRITE_FUNC_M(struct_name) SSRZ_STRUCT_CPP_FUNC_(Write, struct_name, const)
 
 #define SSRZ_STRUCT_MK_READER(structdef) \
     structdef##_M(SSRZ_STRUCT_READ_FUNC_HEADER, SSRZ_EMPTY2, SSRZ_EMPTY3) \
@@ -100,6 +101,10 @@ SSRZ_STRUCT_MK_WIRELENGTH(structdef)
 
 #include <string.h>
 
+#ifdef __cplusplus
+#include <compare>
+#endif
+
 #define MY_INNER_STRUCT_M(struct_name, field, array_field) \
   deF(struct_name, my_inner_struct_t)  \
     deF3(array_field, int8_t, ar, 4)  \
@@ -135,11 +140,12 @@ ssrzTestStruct(){
   uint8_t b1[SSRZ_TEST_BUFSIZE] = {0};
   uint8_t b2[SSRZ_TEST_BUFSIZE] = {0};
   my_struct_t src = {1 ,{{50,51,52,53}, -1, 300, 10000000, (((uint64_t)0x7A) << 56) | 1000  }, -1000};
+  // my_struct_t src_saved = src;
   my_struct_t dst = {0};
 
   ssrzByteStream bs1 = {b1, sizeof(b1)};
 
-  int res_w = ssrzWrite_my_struct_t(&bs1, &src); // serialize test struct into buffer b1
+  int res_w = SSRZ_TEST_OP(ssrzWrite, my_struct_t)(&bs1, &src); // serialize test struct into buffer b1
   {
     size_t data_sz = sizeof(b1) - bs1.length;
     ssrzByteStream bs2 = {b1, data_sz};
@@ -151,17 +157,31 @@ ssrzTestStruct(){
 
     size_t wiresize =  SSRZ_WIRE_LENGTH(my_struct_t);
 
-    if(res_w == 0
+    if( !(res_w == 0
         && res_r == 0
         && res_w2 == 0
         && res_cmp == 0
         && wiresize == SSRZ_TEST_BUFSIZE - bs1.length
         SSRZ_IF_CPP( && ssrzWireLength<my_struct_t>() == wiresize) // test constexpr wire size
-    ){
-      return 0; //Ok
+    )){
+      return -1; //Ok
     }
+
+#   ifdef __cplusplus
+    // this code needs C++20
+    /*
+    if(
+            src <=> src_saved
+            && src <=> dst
+    ){
+        return -1;
+    }
+    */
+
+#   endif
+
   }
-  return -1;
+  return 0;
 }
 
 #endif //SSRZ_TEST

@@ -80,7 +80,7 @@ ssrzByteStreamWrite(ssrzByteStream* bs, uint8_t src){
 
 // declare template readers-writers for c++:
 SSRZ_IF_CPP(template<typename T> static inline int ssrzRead(ssrzByteStream* bs, T* pval)) ;
-SSRZ_IF_CPP(template<typename T> static inline int ssrzWrite(ssrzByteStream* bs, T* pval) );
+SSRZ_IF_CPP(template<typename T> static inline int ssrzWrite(ssrzByteStream* bs, const T* pval) );
 
 
 // define reader for unsigned version of signed type typ (returns error code):
@@ -107,7 +107,7 @@ SSRZ_IF_CPP(template< > inline int \
 
 // define writer for unsigned version of signed type typ (returns error code):
 #define SSRZ_UWRITER_M(typ) static inline int \
-ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
+ssrzWrite_u##typ (ssrzByteStream* bs, const u##typ* pval){ \
   unsigned nb = sizeof(u##typ); \
   u##typ val = *pval; \
   unsigned i; \
@@ -120,7 +120,7 @@ ssrzWrite_u##typ (ssrzByteStream* bs, u##typ* pval){ \
   return 0; \
 }\
 SSRZ_IF_CPP(template< > inline int \
-    ssrzWrite<u##typ>(ssrzByteStream* bs, u##typ* pval){return ssrzWrite_u##typ(bs, pval); } \
+    ssrzWrite<u##typ>(ssrzByteStream* bs, const u##typ* pval){return ssrzWrite_u##typ(bs, pval); } \
 )
 
 #define SSRZ_SREADER_M(typ)  \
@@ -132,11 +132,11 @@ SSRZ_IF_CPP(template< > inline int \
   )
 
 #define SSRZ_SWRITER_M(typ)  \
-  static inline int ssrzWrite_##typ (ssrzByteStream* bs, typ* pval) {\
+  static inline int ssrzWrite_##typ (ssrzByteStream* bs, const typ* pval) {\
     return ssrzWrite_u##typ (bs, (u##typ*)pval); \
   }\
   SSRZ_IF_CPP(template< > inline int \
-      ssrzWrite<typ>(ssrzByteStream* bs, typ* pval){return ssrzRead_##typ(bs, pval); } \
+      ssrzWrite<typ>(ssrzByteStream* bs, const typ* pval){return ssrzWrite_##typ(bs, pval); } \
   )
 
 
@@ -153,7 +153,7 @@ SSRZ_IF_CPP(template< > inline int \
 // common template declaration:
 SSRZ_IF_CPP(template<typename T > inline constexpr size_t ssrzWireLength(); )
 
-// speciialization for type t:
+// specialization for type t:
 #define SSRZ_WIRELENGTH_CONSTEXPR_M(t) SSRZ_IF_CPP( template< > inline constexpr size_t \
   ssrzWireLength<t>() {return SSRZ_WIRE_LENGTH(t);} \
 )
