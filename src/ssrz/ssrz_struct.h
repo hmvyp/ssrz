@@ -14,9 +14,10 @@
 #define SSRZ_STRUCT_FIELD_M(typ, fieldname) typ fieldname;
 #define SSRZ_STRUCT_ARRAY_FIELD_M(typ, fieldname, card) typ fieldname[card];
 
-#define SSRZ_STRUCT_MK_TYPE(structdef) \
+#define SSRZ_STRUCT_MK_TYPE(structdef, extra_members) \
     typedef struct structdef##_M(SSRZ_ID, SSRZ_EMPTY2, SSRZ_EMPTY3) { \
     structdef##_M(SSRZ_EMPTY1, SSRZ_STRUCT_FIELD, SSRZ_STRUCT_ARRAY_FIELD) \
+    extra_members \
 } structdef##_M(SSRZ_ID, SSRZ_EMPTY2, SSRZ_EMPTY3) ;
 
 // for both Read and Write action for a given field:
@@ -84,15 +85,18 @@ structdef##_M(SSRZ_STRUCT_CPP_WRITE_FUNC, SSRZ_EMPTY2, SSRZ_EMPTY3)
   structdef##_M(SSRZ_WIRELENGTH_CONSTEXPR, SSRZ_EMPTY2, SSRZ_EMPTY3)
 
 
-#define SSRZ_DEFINE_STRUCT(structdef) \
-SSRZ_STRUCT_MK_TYPE(structdef)        \
+#define SSRZ_DEFINE_STRUCT_EXTRA(structdef, extra_members) \
+SSRZ_STRUCT_MK_TYPE(structdef, extra_members)        \
 SSRZ_STRUCT_MK_READER(structdef)      \
 SSRZ_STRUCT_MK_WRITER(structdef)
 
-#define SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(structdef) \
-SSRZ_DEFINE_STRUCT(structdef)\
+#define SSRZ_DEFINE_STRUCT_EXTRA_WITH_WIRE_LENGTH(structdef, extra_members) \
+SSRZ_DEFINE_STRUCT_EXTRA(structdef, extra_members)\
 SSRZ_STRUCT_MK_WIRELENGTH(structdef)
 
+
+#define SSRZ_DEFINE_STRUCT(structdef, extra_members) SSRZ_DEFINE_STRUCT_EXTRA_WITH_WIRE_LENGTH(structdef, )
+#define SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(structdef, extra_members) SSRZ_DEFINE_STRUCT_EXTRA_WITH_WIRE_LENGTH(structdef, )
 
 
 //.......... usage example & test:
@@ -105,9 +109,20 @@ SSRZ_STRUCT_MK_WIRELENGTH(structdef)
 #include <compare>
 #endif
 
+#if defined(SSRZ_TEST_ARRAY_MEMBER) || !defined(__cplusplus)
+#   define USE_ARRAY_MEMBER
+#endif
+
+
+#ifdef USE_ARRAY_MEMBER
+#   define ARRAY_MEMBER(something) something
+#else
+#   define ARRAY_MEMBER(something)
+#endif
+
 #define MY_INNER_STRUCT_M(struct_name, field, array_field) \
   deF(struct_name, my_inner_struct_t)  \
-    deF3(array_field, int8_t, ar, 4)  \
+    ARRAY_MEMBER( deF3(array_field, int8_t, ar, 4) )  \
     deF2(field, int8_t, a)  \
     deF2(field, int16_t, b) \
     deF2(field, int32_t, c) \
@@ -120,10 +135,25 @@ SSRZ_STRUCT_MK_WIRELENGTH(structdef)
     deF2(field, int16_t, b) \
 
 
+#ifndef  USE_ARRAY_MEMBER
 
-SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(MY_INNER_STRUCT)
-SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(MY_STRUCT)
+SSRZ_DEFINE_STRUCT_EXTRA_WITH_WIRE_LENGTH(MY_INNER_STRUCT,
+        auto operator<=>(const my_inner_struct_t&) const = default;
+)
+SSRZ_DEFINE_STRUCT_EXTRA_WITH_WIRE_LENGTH(MY_STRUCT,
+        auto operator<=>(const my_struct_t&) const = default;
+)
 
+#else
+
+SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(MY_INNER_STRUCT,
+        auto operator<=>(const my_inner_struct_t&) const = default;
+)
+SSRZ_DEFINE_STRUCT_WITH_WIRE_LENGTH(MY_STRUCT,
+        auto operator<=>(const my_struct_t&) const = default;
+)
+
+#endif
 
 // call C-style serialization function or template function depending on the language:
 #ifdef __cplusplus
@@ -139,8 +169,16 @@ static inline int
 ssrzTestStruct(){
   uint8_t b1[SSRZ_TEST_BUFSIZE] = {0};
   uint8_t b2[SSRZ_TEST_BUFSIZE] = {0};
-  my_struct_t src = {1 ,{{50,51,52,53}, -1, 300, 10000000, (((uint64_t)0x7A) << 56) | 1000  }, -1000};
-  // my_struct_t src_saved = src;
+  my_struct_t src = {1 ,{
+
+#   ifdef USE_ARRAY_MEMBER
+          {50,51,52,53},
+#   endif
+          -1,
+          300, 10000000, (((uint64_t)0x7A) << 56) | 1000  }, -1000
+  };
+
+  my_struct_t src_saved = src;
   my_struct_t dst = {0};
 
   ssrzByteStream bs1 = {b1, sizeof(b1)};
@@ -167,16 +205,18 @@ ssrzTestStruct(){
       return -1; //Ok
     }
 
-#   ifdef __cplusplus
-    // this code needs C++20
-    /*
-    if(
-            src <=> src_saved
-            && src <=> dst
-    ){
+#   ifndef USE_ARRAY_MEMBER
+    // this code needs C++20 (but gcc 10 does not implement <=> for arrays)
+
+    if( !(
+            (src <=> src_saved) == 0
+            && (src <=> dst) == 0
+    )){
         return -1;
     }
-    */
+#   else
+
+    (void)src_saved; // suppress unused warning
 
 #   endif
 
